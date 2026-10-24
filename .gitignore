@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+**/node_modules/
+backend/dist/
+frontend/.next/
+frontend/out/
