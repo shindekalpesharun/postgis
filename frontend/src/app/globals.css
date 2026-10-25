@@ -182,6 +182,45 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.severity-toggle-group {
+  display: grid;
+  gap: 8px;
+}
+
+.severity-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafcfb;
+  color: #48564f;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.severity-toggle:hover {
+  border-color: #bfd2c7;
+  background: #f3f8f5;
+}
+
+.severity-toggle.active {
+  border-color: #176b4d;
+  background: #edf7f2;
+  color: #123e2f;
+}
+
 .legend-dot {
   width: 9px;
   height: 9px;

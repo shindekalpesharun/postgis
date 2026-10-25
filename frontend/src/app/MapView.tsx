@@ -1,6 +1,6 @@
 "use client";
 
-import mapboxgl, { type Map as MapboxMap } from "mapbox-gl";
+import mapboxgl, { type FilterSpecification, type Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef, useState } from "react";
 
 type MapStats = {
@@ -11,7 +11,24 @@ type MapStats = {
   low: number;
 };
 
+type Severity = "high" | "medium" | "low";
+
+const severityOptions: { value: Severity; label: string; color: string }[] = [
+  { value: "high", label: "High", color: "#dc2626" },
+  { value: "medium", label: "Medium", color: "#f59e0b" },
+  { value: "low", label: "Low", color: "#16a34a" },
+];
+
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+const buildSeverityFilter = (
+  selectedSeverities: Severity[],
+  pointCountOperator: ">" | "<=",
+): FilterSpecification => [
+  "all",
+  [pointCountOperator, ["get", "point_count"], 1],
+  ["in", ["get", "severity"], ["literal", selectedSeverities]],
+];
 
 export default function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -19,6 +36,16 @@ export default function MapView() {
   const [stats, setStats] = useState<MapStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number | null>(null);
+  const [selectedSeverities, setSelectedSeverities] = useState<Severity[]>([
+    "high",
+    "medium",
+    "low",
+  ]);
+  const selectedSeveritiesRef = useRef(selectedSeverities);
+
+  useEffect(() => {
+    selectedSeveritiesRef.current = selectedSeverities;
+  }, [selectedSeverities]);
 
   useEffect(() => {
     let active = true;
@@ -51,6 +78,19 @@ export default function MapView() {
   }, []);
 
   useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !map.isStyleLoaded()) {
+      return;
+    }
+
+    const clusterFilter = buildSeverityFilter(selectedSeverities, ">");
+    const pointFilter = buildSeverityFilter(selectedSeverities, "<=");
+    map.setFilter("pothole-clusters", clusterFilter);
+    map.setFilter("pothole-cluster-count", clusterFilter);
+    map.setFilter("pothole-points", pointFilter);
+  }, [selectedSeverities]);
+
+  useEffect(() => {
     if (!token || !mapContainer.current || mapInstance.current) {
       return;
     }
@@ -73,9 +113,11 @@ export default function MapView() {
       setError("The map could not load. Check your Mapbox public token and network connection.");
     });
     map.on("load", () => {
+      const activeSeverities = selectedSeveritiesRef.current;
+
       map.addSource("potholes", {
         type: "vector",
-        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=1  `],
+        tiles: [`${window.location.origin}/api/tiles/{z}/{x}/{y}?v=1`],
         minzoom: 0,
         maxzoom: 22,
         promoteId: "id",
@@ -86,7 +128,7 @@ export default function MapView() {
         type: "circle",
         source: "potholes",
         "source-layer": "potholes",
-        filter: [">", ["get", "point_count"], 1],
+        filter: buildSeverityFilter(activeSeverities, ">"),
         paint: {
           "circle-color": [
             "match",
@@ -123,7 +165,7 @@ export default function MapView() {
         type: "symbol",
         source: "potholes",
         "source-layer": "potholes",
-        filter: [">", ["get", "point_count"], 1],
+        filter: buildSeverityFilter(activeSeverities, ">"),
         layout: {
           "text-field": ["to-string", ["get", "point_count"]],
           "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Regular"],
@@ -140,7 +182,7 @@ export default function MapView() {
         type: "circle",
         source: "potholes",
         "source-layer": "potholes",
-        filter: ["<=", ["get", "point_count"], 1],
+        filter: buildSeverityFilter(activeSeverities, "<="),
         paint: {
           "circle-color": [
             "match",
@@ -275,6 +317,37 @@ export default function MapView() {
             <div><span className="legend-dot high" />High <span>{stats?.high.toLocaleString() ?? "—"}</span></div>
             <div><span className="legend-dot medium" />Medium <span>{stats?.medium.toLocaleString() ?? "—"}</span></div>
             <div><span className="legend-dot low" />Low <span>{stats?.low.toLocaleString() ?? "—"}</span></div>
+          </div>
+
+          <div className="filter-panel">
+            <p className="stat-label">Filter potholes</p>
+            <div className="severity-toggle-group">
+              {severityOptions.map(({ value, label, color }) => {
+                const isActive = selectedSeverities.includes(value);
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`severity-toggle ${isActive ? "active" : ""}`}
+                    aria-pressed={isActive}
+                    onClick={() => {
+                      setSelectedSeverities((current) => {
+                        if (current.includes(value)) {
+                          if (current.length === 1) {
+                            return current;
+                          }
+                          return current.filter((item) => item !== value);
+                        }
+                        return [...current, value];
+                      });
+                    }}
+                  >
+                    <span className="legend-dot" style={{ background: color }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {error && <p className="map-error" role="status">{error}</p>}
           {!token && (
